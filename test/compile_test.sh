@@ -38,8 +38,8 @@ EOF
 _primeSbtTestCache()
 {
   local sbtVersion=${1:-${DEFAULT_SBT_VERSION}}
- 
-  # exit code of app compile is cached so it is consistant between runn 
+
+  # exit code of app compile is cached so it is consistant between runn
   local compileStatusFile=${SBT_TEST_CACHE}/${sbtVersion}/app/compile_status
 
   if [ ! -f ${compileStatusFile} ]; then
@@ -52,7 +52,7 @@ _primeSbtTestCache()
     CACHE_DIR=${SBT_TEST_CACHE}/${sbtVersion}/app/cache
     mkdir -p ${BUILD_DIR} ${CACHE_DIR}
 
-    _createSbtProject ${sbtVersion} ${BUILD_DIR} 
+    _createSbtProject ${sbtVersion} ${BUILD_DIR}
     ${BUILDPACK_HOME}/bin/compile ${BUILD_DIR} ${CACHE_DIR} >/dev/null 2>&1
     echo "$?" > ${compileStatusFile}
 
@@ -85,7 +85,7 @@ createSbtProject()
 testCompile()
 {
   createSbtProject
-  
+
   # create `testfile`s in CACHE_DIR and later assert `compile` copied them to BUILD_DIR
   mkdir -p ${CACHE_DIR}/.sbt_home/.ivy2
   touch    ${CACHE_DIR}/.sbt_home/.ivy2/testfile
@@ -106,37 +106,37 @@ testCompile()
   assertTrue "Ivy2 cache should exist" "[ -d ${BUILD_DIR}/.ivy2/cache ]"
   assertFalse "Old SBT launch jar should have been deleted" "[ -f ${BUILD_DIR}/.sbt_home/bin/sbt-launch-OLD.jar ]"
   assertTrue "sbt launch script should be created" "[ -f ${BUILD_DIR}/.sbt_home/bin/sbt ]"
-  assertCaptured "SBT should have been installed" "Downloading SBT..." 
+  assertCaptured "SBT should have been installed" "Downloading SBT..."
 
   # run
-  assertCaptured "SBT tasks to run should be output" "Running: sbt compile stage" 
-  assertCaptured "SBT should run stage task" "${SBT_STAGING_STRING}" 
- 
+  assertCaptured "SBT tasks to run should be output" "Running: sbt compile stage"
+  assertCaptured "SBT should run stage task" "${SBT_STAGING_STRING}"
+
   # clean up
-  assertEquals "Ivy2 cache should have been repacked for a non-play project" "" "$(diff -r ${BUILD_DIR}/.sbt_home/.ivy2 ${CACHE_DIR}/.sbt_home/.ivy2)"
+  assertEquals "Ivy2 cache should have been repacked for a (non-play|non-xitrum) project" "" "$(diff -r ${BUILD_DIR}/.sbt_home/.ivy2 ${CACHE_DIR}/.sbt_home/.ivy2)"
   assertEquals "SBT home should have been repacked" "" "$(diff -r ${BUILD_DIR}/.sbt_home/bin ${CACHE_DIR}/.sbt_home/bin)"
 
   # re-deploy
   compile
 
   assertCapturedSuccess
-  assertNotCaptured "SBT should not be re-installed on re-run" "Building app with sbt" 
-  assertNotCaptured "SBT should not compile any new classes" "[info] Compiling" 
-  assertNotCaptured "SBT should not resolve any dependencies" "[info] Resolving" 
-  assertCaptured "SBT tasks to run should still be outputed" "Running: sbt compile stage" 
+  assertNotCaptured "SBT should not be re-installed on re-run" "Building app with sbt"
+  assertNotCaptured "SBT should not compile any new classes" "[info] Compiling"
+  assertNotCaptured "SBT should not resolve any dependencies" "[info] Resolving"
+  assertCaptured "SBT tasks to run should still be outputed" "Running: sbt compile stage"
 }
 
 testCleanCompile()
 {
   createSbtProject
-  
+
   # set appropriate env to clean
   echo 'true' > $ENV_DIR/SBT_CLEAN
-  
+
   compile
 
   assertCapturedSuccess
-  assertCaptured "SBT tasks to run should still be outputed" "Running: sbt clean compile stage" 
+  assertCaptured "SBT tasks to run should still be outputed" "Running: sbt clean compile stage"
 }
 
 testCompile_Play20Project() {
@@ -152,6 +152,19 @@ testCompile_Play20Project() {
   assertFalse "Scala cache should not have been included in slug for a play project." "[ -d ${BUILD_DIR}/target/scala-2.9.1 ]"
 }
 
+testCompile_XitrumProject() {
+  createSbtProject
+  mkdir -p ${BUILD_DIR}/conf
+  touch ${BUILD_DIR}/conf/application.conf
+  compile
+  assertCapturedSuccess
+  assertTrue  "Ivy2 cache should have been repacked for a xitrum project." "[ -d ${CACHE_DIR}/.sbt_home/.ivy2 ]"
+  assertFalse "Ivy2 cache should not have been included in slug for a xitrum project." "[ -d ${BUILD_DIR}/.sbt_home/.ivy2 ]"
+  assertFalse "Resolution cache should not have been included in slug for a xitrum project." "[ -d ${BUILD_DIR}/target/resolution-cache ]"
+  assertFalse "Streams should not have been included in slug for a xitrum project." "[ -d ${BUILD_DIR}/target/streams ]"
+  assertFalse "Scala cache should not have been included in slug for a xitrum project." "[ -d ${BUILD_DIR}/target/scala-2.9.1 ]"
+}
+
 testCompile_WithNonDefaultVersion()
 {
   local specifiedSbtVersion="0.11.1"
@@ -162,22 +175,22 @@ testCompile_WithNonDefaultVersion()
   compile
 
   assertCapturedSuccess
-  assertCaptured "Default version of SBT should always be installed" "Downloading SBT" 
-  assertCaptured "Specified SBT version should actually be used" "Getting org.scala-tools.sbt sbt_2.9.1 ${specifiedSbtVersion}" 
+  assertCaptured "Default version of SBT should always be installed" "Downloading SBT"
+  assertCaptured "Specified SBT version should actually be used" "Getting org.scala-tools.sbt sbt_2.9.1 ${specifiedSbtVersion}"
 }
 
 testCompile_WithRCVersion() {
   local specifiedSbtVersion="${DEFAULT_SBT_VERSION}-RC"
   createSbtProject ${specifiedSbtVersion}
   compile
-  assertCaptured "A release candidate version should not be supported." "Error, you have defined an unsupported sbt.version in project/build.properties" 
+  assertCaptured "A release candidate version should not be supported." "Error, you have defined an unsupported sbt.version in project/build.properties"
 }
 
 testCompile_WithoutSupportedSbtPropertiesVersion() {
   local specifiedSbtVersion="0.11.9"
   createSbtProject ${specifiedSbtVersion}
   compile
-  assertCaptured "A version that is allowed by premliminary version check but no SBT props should not be supported." "Error, SBT version ${specifiedSbtVersion} not supported" 
+  assertCaptured "A version that is allowed by premliminary version check but no SBT props should not be supported." "Error, SBT version ${specifiedSbtVersion} not supported"
 }
 
 testCompile_WithMultilineBuildProperties() {
@@ -202,8 +215,8 @@ object MissingBracket {
 EOF
 
   compile
-  
-  assertCapturedError "Failed to build app with sbt"  
+
+  assertCapturedError "Failed to build app with sbt"
 }
 
 testCompile_NoStageTask()
@@ -223,8 +236,8 @@ testComplile_NoBuildPropertiesFile()
   rm ${BUILD_DIR}/project/build.properties
 
   compile
-  
-  assertCapturedError "Error, your scala project must include project/build.properties and define sbt.version" 
+
+  assertCapturedError "Error, your scala project must include project/build.properties and define sbt.version"
   assertCapturedError "You must use a release verison of sbt, sbt.version=${DEFAULT_SBT_VERSION} or greater"
 }
 
@@ -233,8 +246,8 @@ testComplile_BuildPropertiesFileWithUnsupportedOldVersion()
   createSbtProject "0.10.0"
 
   compile
-  
-  assertCapturedError "Error, you have defined an unsupported sbt.version in project/build.properties" 
+
+  assertCapturedError "Error, you have defined an unsupported sbt.version in project/build.properties"
   assertCapturedError "You must use a release verison of sbt, sbt.version=${DEFAULT_SBT_VERSION} or greater"
 }
 
@@ -243,7 +256,7 @@ testComplile_BuildPropertiesFileWithUnsupportedRCVersion()
   createSbtProject "0.11.0-RC"
 
   compile
-  
+
   assertCapturedError "Error, you have defined an unsupported sbt.version in project/build.properties"
   assertCapturedError "You must use a release verison of sbt, sbt.version=${DEFAULT_SBT_VERSION} or greater"
 }
