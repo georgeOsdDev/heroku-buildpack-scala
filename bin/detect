@@ -16,6 +16,8 @@ if detect_sbt $BUILD_DIR ; then
     else
       echo "$PLAY_2_X"
     fi
+  elif is_xitrum $BUILD_DIR ; then
+    echo "Xitrum"
   else
     echo "Scala"
   fi
